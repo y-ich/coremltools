@@ -64,8 +64,32 @@ def constant_propagation(nnssa):
                     for c in constant_nodes:
                         for j in range(constant_node_num_outputs[c]):
                             query_list.append(c + ':' + str(j))
-                    result_list = sess.run(query_list)
-                    result = {query_list[i]: result_list[i] for i in range(len(query_list))}
+                    try:
+                        result_list = sess.run(query_list)
+                        result = {query_list[i]: result_list[i] for i in range(len(query_list))}
+                    except:
+                        print("sess.run failed. starting one-by-one mode.")
+                        import re
+                        result = {}
+                        removed_outputs = {}
+                        for q in query_list.copy():
+                            try:
+                                result[q] = sess.run(q)
+                            except:
+                                print("removing ", q)
+                                query_list.remove(q)
+                                m = re.match(r"([^:]+):([0-9]+)$", q)
+                                if not (m.group(1) in removed_outputs):
+                                    removed_outputs[m.group(1)] = []
+                                removed_outputs[m.group(1)].append(int(m.group(2)))
+                        for node_name, numbers in removed_outputs.items():
+                            min_n = min(numbers)
+                            max_n = max(numbers)
+                            if max_n - min_n + 1 != len(numbers):
+                                raise ValueError("Non-sequential dead outputs are not supported")
+                            if max_n != constant_node_num_outputs[node_name] - 1:
+                                raise ValueError("dead outputs in middle positions are not supported")
+                            constant_node_num_outputs[node_name] = min_n
                     print(query_list)
             for f in nnssa.functions.values():
                 for k, v in f.graph.items():
@@ -88,7 +112,8 @@ def constant_propagation(nnssa):
                                 v.datatype = builtins.tuple(tuple([val[1] for val in npval]))
                             except:
                                 print(values)
-    except:
+    except Exception as e:
         print("Constant Propagation pass failed")
+        raise e
 
     delete_unnecessary_constant_nodes(nnssa)

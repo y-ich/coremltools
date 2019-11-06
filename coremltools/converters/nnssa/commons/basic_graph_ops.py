@@ -182,6 +182,16 @@ def const_determined_nodes(gd, assume_variable_nodes=[]):
             vis[node.name] = False
         elif node.name in assume_variable_nodes:
             vis[node.name] = False
+        elif 'Merge' in node.op: 
+            ret = False
+            vis[node.name] = False
+            for innode in node.inputs:
+                if innode not in vis:
+                    visit(innode)
+                if vis[innode]: # Assuming all inputs are Switches, if one of inputs is constant, then constant.
+                    ret = True
+                    break
+            vis[node.name] = ret
         else:
             ret = True
             vis[node.name] = False

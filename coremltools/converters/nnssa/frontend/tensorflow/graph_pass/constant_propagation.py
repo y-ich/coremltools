@@ -35,7 +35,7 @@ def constant_propagation(nnssa):
         topsort_set = set()
         while len(const_nodes_in_this_graph) > 0:
             for n in const_nodes_in_this_graph:
-                if len(set(f.graph[n].inputs).difference(topsort_set)) == 0:
+                if len(set(f.graph[n].inputs).difference(topsort_set)) == 0 or (f.graph[n].op == "Merge" and len(set(f.graph[n].inputs).difference(topsort_set)) == 1):
                     topsort.append(n)
                     topsort_set.add(n)
 
@@ -47,7 +47,13 @@ def constant_propagation(nnssa):
             if '_class' in new_node.attr:
                 del new_node.attr['_class']
             del new_node.input[:]
-            new_node.input.extend(f.graph[node].inputs)
+            if f.graph[node].op == "Merge":
+                for inp in f.graph[node].inputs:
+                    if inp in topsort:
+                        new_node.input.extend([inp, inp]) # Merge does not allow one input, so connect same inputs.
+                        break
+            else:
+                new_node.input.extend(f.graph[node].inputs)
             if '_output_shapes' in f.graph[node].attr:
                 constant_node_num_outputs[node] = len(f.graph[node].attr['_output_shapes'])
             else:
